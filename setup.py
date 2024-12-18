@@ -24,7 +24,7 @@ setuptools.setup(
     name='mobly-android-screen-recorder',
     version='1.0.0',
     author='Yao Yao',
-    author_email='yaoyao.skys@gmail.com',
+    author_email='yayao@google.com',
     description='Mobly Android Screen Recorder service for using Python code to screencast the Android devices in Mobly tests.',
     license='Apache2.0',
     url='https://github.com/google/mobly-android-screen-recorder',
