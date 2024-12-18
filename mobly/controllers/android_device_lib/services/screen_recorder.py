@@ -142,11 +142,11 @@ class ServiceTimeStamps:
 
 
 class Error(errors.ServiceError):
-  """Error type for ScreenRecorderV2 service."""
-  SERVICE_TYPE = 'ScreenRecorderV2'
+  """Error type for ScreenRecorder service."""
+  SERVICE_TYPE = 'ScreenRecorder'
 
 
-class ScreenRecorderV2(base_service.BaseService):
+class ScreenRecorder(base_service.BaseService):
   """A service for recording screen videos from an Android device.
 
   This service is implemented with `scrcpy` dependency.
@@ -194,7 +194,7 @@ class ScreenRecorderV2(base_service.BaseService):
     self._video_rotation = 0
 
   def __repr__(self) -> str:
-    return (f'ScreenRecorderV2(serial={self._device.serial}'
+    return (f'ScreenRecorder(serial={self._device.serial}'
             f' dir={self.output_dir} bit_rate={self._video_meta.bit_rate}'
             f' max_height={self._video_meta.max_height})')
 
