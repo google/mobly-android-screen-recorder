@@ -2,7 +2,7 @@
 name = "mobly-android-screen-recorder"
 description = "Mobly Android Screen Recorder service for using Python code to screencast the Android devices in Mobly tests."
 authors = [{ name = "Google Inc." }]
-maintainers = [{ name = "Yao Yao", email = "yaoyao.skys@gmail.com" }]
+maintainers = [{ name = "Yao Yao", email = "yayao@google.com" }]
 license = { file = "LICENSE" }
 readme = "README.md"
 requires-python = ">=3.11"
