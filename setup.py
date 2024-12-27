@@ -18,6 +18,9 @@ import setuptools
 
 install_requires = [
     'mobly>=1.12.2',
+    'numpy>=2.2.1',
+    'opencv-python>=4.10.0.84',
+    'retrying>=1.3.4',
 ]
 
 setuptools.setup(
@@ -29,6 +32,7 @@ setuptools.setup(
     license='Apache2.0',
     url='https://github.com/google/mobly-android-screen-recorder',
     packages=setuptools.find_namespace_packages(include=['mobly.controllers.android_device_lib.services*']),
+    package_data={'mobly.controllers.android_device_lib.services': ['data/*']},
     install_requires=install_requires,
     python_requires='>=3.11',
 )

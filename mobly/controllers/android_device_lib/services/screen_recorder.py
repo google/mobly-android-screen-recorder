@@ -24,14 +24,19 @@ import subprocess
 import threading
 import time
 from typing import Any, List, Optional
+import cv2
 
 from mobly import runtime_test_info
 from mobly.controllers import android_device
 from mobly.controllers.android_device_lib import adb
 from mobly.controllers.android_device_lib import errors
 from mobly.controllers.android_device_lib.services import base_service
+import numpy as np
+import retrying
 
-
+_APK_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), 'data/scrcpy-server.apk'
+)
 _TARGET_PATH = '/data/local/tmp/scrcpy-server.apk'
 _LAUNCHING_SERVER_CMD = (
     'shell',
@@ -191,7 +196,6 @@ class ScreenRecorder(base_service.BaseService):
     self._video_files = []    # released video files, will be merged at last
     self._executor = futures.ThreadPoolExecutor(max_workers=1)
     self._job = None
-    self._video_rotation = 0
 
   def __repr__(self) -> str:
     return (f'ScreenRecorder(serial={self._device.serial}'
@@ -242,7 +246,7 @@ class ScreenRecorder(base_service.BaseService):
     # log first start time.
     if log_start_flag and self._output_filename:
       self._device.log.info(
-          test_fission_utils.generate_video_start_log_with_filename(
+          self._generate_video_start_log_with_filename(
               self._device, self._output_filename
           )
       )
@@ -338,6 +342,7 @@ class ScreenRecorder(base_service.BaseService):
     self._device.log.debug(f'Padding {padding_nums} frames at release time.')
 
     if self._video_writer is not None:
+      self._video_writer.release()
       self._video_writer = None
       last_video = os.path.join(self.output_dir, self._output_filename)
       self._video_files.append(last_video)
@@ -381,9 +386,13 @@ class ScreenRecorder(base_service.BaseService):
     self._timestamps.last_time = host_time
     return frame_num
 
-  @retry.retry_on_exception(
-      retry_intervals=(_RETRY_INTERVAL_SEC,) * _RETRY_TIMES,
-      retry_value=(adb.AdbError, ConnectionError))
+  @retrying.retry(
+      stop_max_attempt_number=_RETRY_TIMES,
+      wait_fixed=_RETRY_INTERVAL_SEC,
+      retry_on_exception=lambda e: isinstance(
+          e, (adb.AdbError, ConnectionError)
+      ),
+  )
   def _restart(self) -> None:
     """Restarts the server.
 
@@ -477,11 +486,7 @@ class ScreenRecorder(base_service.BaseService):
     self._device.log.debug('Starting new scrcpy video socket connection')
     for attempts in range(_MAX_CONNECTION_ATTEMPTS):
       try:
-        if platform.system() == 'Darwin':
-          socket_type = socket.AF_INET if attempts % 2 == 0 else socket.AF_INET6
-        else:
-          socket_type = self._get_socket_connection_type()
-
+        socket_type = socket.AF_INET if attempts % 2 == 0 else socket.AF_INET6
         self._video_socket = socket.socket(socket_type, socket.SOCK_STREAM)
         self._video_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._video_socket.connect_ex(('localhost', self.port))
@@ -503,18 +508,6 @@ class ScreenRecorder(base_service.BaseService):
           'Failed to build video socket connection with scrcpy server.'
       )
 
-  def _get_socket_connection_type(self) -> int:
-    """Gets the socket type associated with the supporting address."""
-    if ipaddress_util.ipv4_address_family_supported():
-      self._device.log.debug('IPv4 address family is supported')
-      return socket.AF_INET
-    if ipaddress_util.ipv6_address_family_supported():
-      self._device.log.debug('IPv6 address family is supported')
-      return socket.AF_INET6
-    raise ConnectionError(
-        'IPv4 and IPv6 are both unsupported, cannot connect to scrcpy server.'
-    )
-
   def _read_metadata(self) -> None:
     """Reads device name and screen size through socket."""
     if self._video_socket is None:
@@ -532,14 +525,17 @@ class ScreenRecorder(base_service.BaseService):
     )
 
   def _set_writer(self) -> None:
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     filename = self._device.generate_filename('video', extension_name='mp4')
     self._output_filename = filename
-    self._video_writer = video_writer.Create(
+    self._video_writer = cv2.VideoWriter(
         os.path.join(self.output_dir, filename),
+        fourcc,
         self._video_meta.fps,
-        self._video_meta.width,
-        self._video_meta.height,
-        self._video_rotation,
+        frameSize=(
+            self._video_meta.width,
+            self._video_meta.height,
+        ),
     )
 
   def _start_server(self) -> None:
@@ -585,19 +581,18 @@ class ScreenRecorder(base_service.BaseService):
     except adb.AdbError:
       pass    # Expected if no scrcpy processes are running.
 
-  def _write_frame_to_file(self, frame: bytes) -> None:
+  def _write_frame_to_file(self, frame_bytes: bytes) -> None:
     if self._video_writer is None:
       raise ValueError('_set_writer() not call, _video_writer is None.')
-    if frame:
-      try:
-        self._video_writer.DecodeAndWriteFrame(frame, len(frame))
-      except error.StatusNotOk as e:
-        self._device.log.error(f'Failed to write non-empty frame: {e}')
-    else:
-      try:
-        self._video_writer.WriteBlankFrame()
-      except error.StatusNotOk as e:
-        self._device.log.error(f'Failed to write empty frame: {e}')
+    # if frame_bytes is empty, write a blank frame.
+    frame = (
+        cv2.imdecode(np.frombuffer(frame_bytes, np.uint8), cv2.IMREAD_COLOR)
+        if frame_bytes
+        else np.zeros(
+            (self._video_meta.height, self._video_meta.width, 3), np.uint8
+        )
+    )
+    self._video_writer.write(frame)
 
   def create_output_excerpts(
       self, test_info: runtime_test_info.RuntimeTestInfo) -> List[Any]:
@@ -628,12 +623,36 @@ class ScreenRecorder(base_service.BaseService):
       self._device.log.info('Service writes none or more than one videos.')
       raise Error(self._device, 'Service writes none or more than one videos.')
 
-  @retry.retry_on_exception(
-      retry_intervals=(_FORWARD_PORT_RETRY_INTERVAL_SEC,)
-      * _FORWARD_PORT_RETRY_TIMES,
-      retry_value=(adb.AdbError),
+  @retrying.retry(
+      stop_max_attempt_number=_FORWARD_PORT_RETRY_TIMES,
+      wait_fixed=_FORWARD_PORT_RETRY_INTERVAL_SEC,
+      retry_on_exception=lambda e: isinstance(e, (adb.AdbError)),
   )
   def _forward_port(self) -> None:
     with ADB_PORT_LOCK:  # lock when allocating and forwarding port
       port = self._device.adb.forward(['tcp:0', 'localabstract:scrcpy'])
       self.port = int(port.split(b'\n')[0])
+      
+  def _generate_video_start_log_with_filename(
+      self, device: android_device.AndroidDevice, filename: str
+  ) -> str:
+    """Gets the log when video record start.
+
+    Args:
+      device: The Android device which records the video.
+      filename: The file name which the video record is saved as.
+
+    Returns:
+      The log contains video starting time.
+    """
+
+    return 'INFO:%s Start video recording %s, output filename %s' % (
+        device.serial,
+        str(
+            device.adb.shell(
+                'echo $(date +%Y-%m-%dT%T)${EPOCHREALTIME:10:4}'
+            ).replace(b'\n', b''),
+            'UTF-8',
+        ),
+        filename,
+    )
