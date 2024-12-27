@@ -1,12 +1,36 @@
 # Mobly Android Screen Recorder
 
 Mobly Android Screen Recorder service for using Python code to screencast the
-Android devices in Mobly tests.
+Android devices in Mobly tests (https://github.com/google/mobly).
+
+## Responsible Use
+
+This tool is designed for legitimate testing and debugging purposes within the
+context of Mobly. It should only be used in situations where you have:
+
+* **Explicit consent:** Obtain clear and informed consent from any individuals
+* whose screens might be recorded.
+* **Legitimate purpose:**  Use the tool for legitimate testing, debugging,
+* or development activities related to Mobly.
+* **Data security:**  Handle recorded screen data responsibly. Store it
+* securely and delete it when it's no longer needed.
+* **Transparency:** Be transparent about how the tool is being used and what
+* data is being collected.
+
+**Misuse of this tool for unauthorized surveillance or any other malicious
+activity is strictly prohibited.**
+
+**Remember:** Recording someone's screen without their knowledge or consent
+is a serious breach of privacy and may have legal consequences. 
 
 ## Requirements
 
 -   Python 3.11+
 -   Mobly 1.12.2+
+-   FFMPEG 6.1.1+
+
+Please make sure your FFMPEG support H.264 (run `ffmpeg -codecs` and
+look for **libx264** encoder in the output) 
 
 ## Installation
 
