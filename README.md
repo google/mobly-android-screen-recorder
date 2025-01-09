@@ -111,3 +111,11 @@ $ python hello_world_test.py -c sample_config.yml
 A "Hello World!" toast notification appears on your device's screen. And a video
 file named `video,{device_serial},{device_model},{timestamp}.mp4` is created in
 the test output folder.
+
+## Disclaimer
+
+This tool, owned by Google and its developers, provides screen recording functionality for Android devices within the context of Mobly testing. It is essential to use this tool responsibly and ethically. 
+
+**Privacy Warning:** Screen recording can capture sensitive information. **Always obtain explicit consent before recording anyone's screen.** Unauthorized screen recording may violate privacy laws and ethical guidelines. Neither Google nor the developers of this tool are responsible for any misuse or illegal activity conducted with this software.
+
+Users of this tool are solely responsible for ensuring compliance with all applicable laws and regulations regarding privacy and data protection.
