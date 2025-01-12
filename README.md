@@ -119,3 +119,9 @@ This tool, owned by Google and its developers, provides screen recording functio
 **Privacy Warning:** Screen recording can capture sensitive information. **Always obtain explicit consent before recording anyone's screen.** Unauthorized screen recording may violate privacy laws and ethical guidelines. Neither Google nor the developers of this tool are responsible for any misuse or illegal activity conducted with this software.
 
 Users of this tool are solely responsible for ensuring compliance with all applicable laws and regulations regarding privacy and data protection.
+
+## Licensing
+
+This project is licensed under the [Apache License 2.0](LICENSE).
+
+This project uses [scrcpy](https://github.com/Genymobile/scrcpy), which is licensed under the Apache License 2.0. See the [NOTICE](NOTICE) file for details.
