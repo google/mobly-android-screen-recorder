@@ -16,6 +16,7 @@
 
 from concurrent import futures
 import dataclasses
+import enum
 import os
 import platform
 import shutil
@@ -35,22 +36,26 @@ import numpy as np
 import retrying
 
 _APK_PATH = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), 'data/scrcpy-server.apk'
+    os.path.dirname(os.path.abspath(__file__)), 'data/scrcpy-server-v3.jar'
 )
-_TARGET_PATH = '/data/local/tmp/scrcpy-server.apk'
+_TARGET_PATH = '/data/local/tmp/scrcpy-server.jar'
 _LAUNCHING_SERVER_CMD = (
     'shell',
-    'CLASSPATH=/data/local/tmp/scrcpy-server.apk',
+    'CLASSPATH=/data/local/tmp/scrcpy-server.jar',
     'app_process',
     '/',
     'com.genymobile.scrcpy.Server',
-    '1.2.3',
+    '3.1',
     'log_level=DEBUG',
-    'color_format=JPEG',
     'tunnel_forward=true',
     'stay_awake=true',
-    'is_encoding=false',
-    'lock_video_orientation=-2',
+    'audio=false',
+    'video_codec_options=image_format:string=JPEG',
+    'video_encoder=raw',
+    'send_device_meta=true',
+    'send_frame_meta=true',
+    'send_dummy_byte=true',
+    'send_codec_meta=true',
     'control=false',
 )
 
@@ -59,7 +64,7 @@ _META_DATA_SIZE = 64 + 4
 _FRAME_HEADER_SIZE = 24
 _MAX_RECV_BYTES = 30000000
 
-_MAX_CONNECTION_ATTEMPTS = 10
+_MAX_CONNECTION_ATTEMPTS = 100
 _CONNECTION_WAIT_TIME_SEC = 0.1
 _RETRY_TIMES = 10
 _RETRY_INTERVAL_SEC = 3.0
@@ -68,10 +73,23 @@ _VIDEO_BIT_RATE = 100000
 _MAX_VIDEO_SIZE = 1080
 _FORWARD_PORT_RETRY_TIMES = 3
 _FORWARD_PORT_RETRY_INTERVAL_SEC = 0.5
+_MAX_WEAR_FPS = 10
+_MAX_WEAR_FRAME_SIZE = 400
 
 # prevent potential race condition in port allocation and forwarding
 ADB_PORT_LOCK = threading.Lock()
 
+
+@enum.unique
+class CaptureOrientationType(enum.StrEnum):
+  """An enum class to indicate the capture orientation type (clockwise)."""
+
+  INITIAL_ORIENTATION = '@'
+  ZERO_DEGREE = '@0'
+  NINETY_DEGREE = '@90'
+  ONE_EIGHTY_DEGREE = '@180'
+  TWO_SEVENTY_DEGREE = '@270'
+  
 
 @dataclasses.dataclass
 class Configs:
@@ -84,6 +102,7 @@ class Configs:
     max_video_size: Maximum video height
     raise_when_no_frames: whether to raise exception when no frame recorded
     display_id: Display identifier in case of multiple displays
+    capture_orientation: The capture orientation type
   """
   output_dir: Optional[str] = None
   video_bit_rate: Optional[int] = _VIDEO_BIT_RATE
@@ -91,13 +110,20 @@ class Configs:
   max_video_size: Optional[int] = _MAX_VIDEO_SIZE
   raise_when_no_frames: Optional[bool] = True
   display_id: Optional[int] = None
+  capture_orientation: Optional[CaptureOrientationType] = (
+      CaptureOrientationType.INITIAL_ORIENTATION
+  )
 
   def __repr__(self) -> str:
-    return (f'Configs(dir={self.output_dir}'
-            f' bit_rate={self.video_bit_rate}'
-            f' max_size={self.max_video_size})'
-            f' max_fps={self.max_fps}'
-            f' raise_when_no_frames={self.raise_when_no_frames}')
+    return (
+        f'Configs(dir={self.output_dir}'
+        f' bit_rate={self.video_bit_rate}'
+        f' max_size={self.max_video_size})'
+        f' max_fps={self.max_fps}'
+        f' raise_when_no_frames={self.raise_when_no_frames}'
+        f' display_id={self.display_id}'
+        f' capture_orientation={self.capture_orientation}'
+    )
 
 
 @dataclasses.dataclass
@@ -111,6 +137,7 @@ class VideoMetadata:
     height: Actual video resolution (height)
     fps: Frame per second
     display_id: Display identifier
+    orientation: The rotation of the video
   """
 
   bit_rate: Optional[int] = None
@@ -119,6 +146,9 @@ class VideoMetadata:
   height: int = 0
   fps: Optional[int] = _MAX_FPS
   display_id: Optional[int] = None
+  orientation: CaptureOrientationType = (
+      CaptureOrientationType.INITIAL_ORIENTATION
+  )
 
 
 @dataclasses.dataclass
@@ -187,6 +217,7 @@ class ScreenRecorder(base_service.BaseService):
         height=0,
         fps=configs.max_fps or _MAX_FPS,
         display_id=configs.display_id,
+        orientation=configs.capture_orientation,
     )
     self._timestamps = ServiceTimeStamps()
     self._last_frame = None
@@ -523,6 +554,13 @@ class ScreenRecorder(base_service.BaseService):
     self._device.log.debug(
         f'WxH: {self._video_meta.width}x{self._video_meta.height}',
     )
+    # For wearable form factor, we need to set the fps to 10 to save resource.
+    if (
+        self._video_meta.width < _MAX_WEAR_FRAME_SIZE
+        and self._video_meta.height < _MAX_WEAR_FRAME_SIZE
+        and self._video_meta.fps == _MAX_FPS
+    ):
+      self._video_meta.fps = _MAX_WEAR_FPS
 
   def _set_writer(self) -> None:
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
@@ -542,13 +580,15 @@ class ScreenRecorder(base_service.BaseService):
     server_cmd = [adb.ADB, '-s', str(self._device.serial)]
     server_cmd += list(_LAUNCHING_SERVER_CMD)
     if self._video_meta.bit_rate:
-      server_cmd.append(f'bit_rate={self._video_meta.bit_rate}')
+      server_cmd.append(f'video_bit_rate={self._video_meta.bit_rate}')
     if self._video_meta.fps:
       server_cmd.append(f'max_fps={self._video_meta.fps}')
     if self._video_meta.max_height:
       server_cmd.append(f'max_size={self._video_meta.max_height}')
     if self._video_meta.display_id is not None:
       server_cmd.append(f'display_id={self._video_meta.display_id}')
+    server_cmd.append(f'capture_orientation={self._video_meta.orientation}')
+
     cmd_str = ' '.join(server_cmd)
     self._device.log.debug(f'Starting server with Popen command: {cmd_str}')
     self._server_proc = subprocess.Popen(
@@ -562,7 +602,7 @@ class ScreenRecorder(base_service.BaseService):
       if isinstance(output_line, bytes):
         stdout_line = output_line.decode('utf-8').strip()
       else:
-        stdout_line = output_line.strip()
+        stdout_line = str(output_line).strip()
       if stdout_line.find('[server] INFO: Device: ') == 0:
         break
       else:
