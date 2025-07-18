@@ -559,7 +559,7 @@ class ScreenRecorder(base_service.BaseService):
       self._video_meta.fps = _MAX_WEAR_FPS
 
   def _set_writer(self) -> None:
-    fourcc = cv2.VideoWriter_fourcc(*'avc1')
+    fourcc = cv2.VideoWriter_fourcc(*'H264')
     filename = self._device.generate_filename('video', extension_name='mp4')
     self._output_filename = filename
     self._video_writer = cv2.VideoWriter(
