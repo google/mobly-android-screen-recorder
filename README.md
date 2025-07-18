@@ -30,7 +30,9 @@ is a serious breach of privacy and may have legal consequences.
 -   FFMPEG 6.1.1+
 
 Please make sure your FFMPEG support H.264 (run `ffmpeg -codecs` and
-look for **libx264** encoder in the output) 
+look for **libx264** encoder in the output) and the OpenCV in Python built
+with the H.264 encoder(`print(cv2.getBuildInformation())` then look at the
+Video I/O section).
 
 ## Installation
 
