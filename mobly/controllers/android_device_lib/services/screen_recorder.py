@@ -49,14 +49,10 @@ _LAUNCHING_SERVER_CMD = (
     'log_level=DEBUG',
     'tunnel_forward=true',
     'stay_awake=true',
+    'video=true',
     'audio=false',
-    'video_codec_options=image_format:string=JPEG',
-    'video_encoder=raw',
-    'send_device_meta=true',
-    'send_frame_meta=true',
-    'send_dummy_byte=true',
-    'send_codec_meta=true',
     'control=false',
+    'video_encoder=raw',
 )
 
 _ADB_TIMEOUT_SEC = 5
@@ -563,7 +559,7 @@ class ScreenRecorder(base_service.BaseService):
       self._video_meta.fps = _MAX_WEAR_FPS
 
   def _set_writer(self) -> None:
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    fourcc = cv2.VideoWriter_fourcc(*'acv1')
     filename = self._device.generate_filename('video', extension_name='mp4')
     self._output_filename = filename
     self._video_writer = cv2.VideoWriter(
