@@ -1,0 +1,36 @@
+     # .github/workflows/publish-to-pypi.yml
+ 
+     name: Publish Python Package to PyPI
+ 
+     on:
+       # This workflow runs only when a new release is created on GitHub.
+       release:
+         types: [created]
+ 
+     jobs:
+       deploy:
+         runs-on: ubuntu-latest
+ 
+         # These permissions are required for trusted publishing.
+         permissions:
+           id-token: write # Required for OIDC authentication with PyPI
+           contents: read # Required to checkout the code
+ 
+         steps:
+         - name: Checkout repository
+           uses: actions/checkout@v4
+ 
+         - name: Set up Python
+           uses: actions/setup-python@v4
+           with:
+             python-version: '3.11' # Match your project's required Python version
+ 
+         - name: Install build dependencies
+           run: python -m pip install --upgrade build
+ 
+         - name: Build package
+           run: python -m build
+ 
+         - name: Publish package to PyPI
+           uses: pypa/gh-action-pypi-publish@release/v1
+
