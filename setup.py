@@ -25,7 +25,7 @@ install_requires = [
 
 setuptools.setup(
     name='mobly-android-screen-recorder',
-    version='1.0.2',
+    version='1.0.3',
     author='Yao Yao',
     author_email='yayao@google.com',
     description='Mobly Android Screen Recorder service for using Python code to screencast the Android devices in Mobly tests.',
