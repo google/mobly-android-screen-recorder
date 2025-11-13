@@ -3,6 +3,8 @@
 Mobly Android Screen Recorder service for using Python code to screencast the
 Android devices in Mobly tests (https://github.com/google/mobly).
 
+This tool is upgraded to scrcpy v3.3 and adds audio recording feature.
+
 ## Responsible Use
 
 This tool is designed for legitimate testing and debugging purposes within the
@@ -34,6 +36,9 @@ look for **libx264** encoder in the output) and the OpenCV in Python built
 with the H.264 encoder(`print(cv2.getBuildInformation())` then look at the
 Video I/O section).
 
+**Note:** To use the audio recording feature, you must have `ffmpeg` installed
+and available in your system's PATH.
+
 ## Installation
 
 ```shell
@@ -46,11 +51,13 @@ After initializing the Android device, you can register the screen recorder
 service with the following code:
 
 ```python
-from mobly.controllers.android_device_lib.services.android_screen_recorder import screen_recorder
+from mobly.controllers.android_device_lib.services import screen_recorder
 ...
 
 self.dut = self.register_controller(android_device)[0]
-self.dut.services.register('screen_recorder', screen_recorder.ScreenRecorder)
+# To enable audio recording, set `enable_audio=True` in the configs.
+configs = screen_recorder.Configs(enable_audio=True)
+self.dut.services.register('screen_recorder', screen_recorder.ScreenRecorder, configs=configs)
 ```
 
 Then the screen recorder will start recording the screen when the test starts
@@ -60,8 +67,8 @@ case with **create_output_excerpts_all** for all registered Mobly services.
 
 ## Example 1: Hello World!
 
-  Let's start with the simple example of posting "Hello World" on the Android
-device's screen. Create the following files:   **sample_config.yml**
+ Let's start with the simple example of posting "Hello World" on the Android
+device's screen. Create the following files:   **sample_config.yml**
 
 ```yaml
 TestBeds:
@@ -77,6 +84,7 @@ TestBeds:
 from mobly import base_test
 from mobly import test_runner
 from mobly.controllers import android_device
+from mobly.controllers.android_device_lib.services import screen_recorder
 
 class HelloWorldTest(base_test.BaseTestClass):
 
@@ -90,7 +98,9 @@ class HelloWorldTest(base_test.BaseTestClass):
     self.dut.load_snippet('mbs', android_device.MBS_PACKAGE)
     # Register screen recorder service, it will start recording when the test
     # starts and stop recording when the test finishes.
-    self.dut.services.register('screen_recorder', screen_recorder.ScreenRecorder)
+    # To enable audio recording, set `enable_audio=True` in the configs.
+    configs = screen_recorder.Configs(enable_audio=True)
+    self.dut.services.register('screen_recorder', screen_recorder.ScreenRecorder, configs=configs)
 
   def test_hello(self):
     self.dut.mbs.makeToast('Hello World!')
