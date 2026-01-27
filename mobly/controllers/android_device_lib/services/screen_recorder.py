@@ -384,9 +384,10 @@ class ScreenRecorder(base_service.BaseService):
             )
         self._kill_scrcpy_server()
         self._video_executor.shutdown(wait=False)
-        self._audio_executor.shutdown(wait=False)
         self._video_executor = None
-        self._audio_executor = None
+        if self._audio_executor is not None:
+            self._audio_executor.shutdown(wait=False)
+            self._audio_executor = None
 
         video_result = None
         if self._video_job:
